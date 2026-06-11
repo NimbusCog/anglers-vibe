@@ -161,9 +161,16 @@ def make_app():
     app.router.add_post("/api/buy", api_buy)
     app.router.add_post("/api/pos", api_pos)
     app.router.add_get("/ws", ws_handler)
-    if os.path.isdir(config.CLIENT_DIST):
-        app.router.add_get("/", lambda r: web.FileResponse(os.path.join(config.CLIENT_DIST, "index.html")))
-        app.router.add_static("/", config.CLIENT_DIST)
+    candidates = [
+        config.CLIENT_DIST,
+        "/app/client/dist",
+        os.path.join(os.getcwd(), "client", "dist"),
+    ]
+    dist = next((p for p in candidates if os.path.isdir(p)), None)
+    log.info(f"static dist resolved: {dist} (cwd={os.getcwd()}, candidates checked={candidates})")
+    if dist:
+        app.router.add_get("/", lambda r: web.FileResponse(os.path.join(dist, "index.html")))
+        app.router.add_static("/", dist)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     return app
