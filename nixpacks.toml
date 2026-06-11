@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python311", "bun"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt", "cd client && bun install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["cd client && bun run build"]

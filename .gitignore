@@ -1,0 +1,12 @@
+server/venv/
+server/data/
+client/node_modules/
+client/dist/
+logs/
+*.log
+.env
+__pycache__/
+.DS_Store
+CLAUDE.md
+client/CLAUDE.md
+docs/

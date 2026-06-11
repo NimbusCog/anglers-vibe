@@ -1,0 +1,7 @@
+server/venv/
+server/data/
+client/node_modules/
+client/dist/
+logs/
+docs/
+*.log
