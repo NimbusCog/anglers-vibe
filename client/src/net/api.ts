@@ -54,10 +54,16 @@ export async function savePos(x: number, z: number) {
 }
 
 export function subscribeWorld(onWorld: (w: WorldState) => void) {
-  const url = `${API.replace("http", "ws") || `ws://${location.host}`}/ws`;
-  let ws: WebSocket;
+  const wsProto = location.protocol === "https:" ? "wss" : "ws";
+  const url = API ? `${API.replace(/^http/, wsProto)}/ws` : `${wsProto}://${location.host}/ws`;
   const connect = () => {
-    ws = new WebSocket(url);
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      setTimeout(connect, 5000);   // never let WS failure kill the game
+      return;
+    }
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
