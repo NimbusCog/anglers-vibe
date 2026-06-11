@@ -37,6 +37,9 @@ export class Fishing {
   private twitchLeft = 0;             // jig: time until next twitch prompt
   private twitchWindow = 0;           // jig: open prompt window
   private pending: { species: SpeciesDef; weight: number; pct: number } | null = null;
+  private forced: SpeciesDef | null = null;
+  /** wired by main: returns a cruiser's species if the cast landed on one */
+  claimCruiser: ((p: THREE.Vector3) => SpeciesDef | null) | null = null;
   private sim: FightSim | null = null;
   private maxDistance = 1;
   private shadowAngle = 0;
@@ -265,8 +268,14 @@ export class Fishing {
     this.castPoint.set(target.x, lvl + 0.05, target.z);
     this.bobber.position.copy(this.castPoint);
     this.bobber.visible = true;
-    const baseWait = biteWait();
-    this.waitLeft = this.method === "fly" ? baseWait * 0.75 : baseWait;
+    this.forced = this.claimCruiser?.(this.castPoint) ?? null;
+    if (this.forced) {
+      this.waitLeft = 1.5 + Math.random() * 2;            // it saw your lure land
+      this.hud.toast("it's turning toward your lure…");
+    } else {
+      const baseWait = biteWait();
+      this.waitLeft = this.method === "fly" ? baseWait * 0.75 : baseWait;
+    }
     this.twitchLeft = 3;
     this.twitchWindow = 0;
     audio.splash();
@@ -276,7 +285,15 @@ export class Fishing {
   private triggerBite() {
     const world = this.getWorld();
     const region = regionAt(this.castPoint.x, this.castPoint.z);
-    const bite = sampleBite(this.getSpecies(), region, world, Math.random, this.getMethodMult(this.method));
+    let bite: { species: SpeciesDef; weight: number; pct: number } | null;
+    if (this.forced) {
+      const pct = Math.random();
+      const weight = Math.round((this.forced.wmin + pct * (this.forced.wmax - this.forced.wmin)) * 100) / 100;
+      bite = { species: this.forced, weight, pct };
+      this.forced = null;
+    } else {
+      bite = sampleBite(this.getSpecies(), region, world, Math.random, this.getMethodMult(this.method));
+    }
     if (!bite) { this.reset("nothing biting here"); return; }
     this.pending = bite;
     let win = hookWindow(bite.species.rarity);
@@ -320,6 +337,7 @@ export class Fishing {
     audio.setRunning(false, 0);
     this.phase = "idle";
     this.pending = null;
+    this.forced = null;
     this.sim = null;
     this.bobber.visible = false;
     this.splash.visible = false;

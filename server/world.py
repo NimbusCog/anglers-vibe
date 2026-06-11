@@ -56,3 +56,17 @@ def snapshot(now, clock_epoch, seed):
         "aurora": aurora,
         "sun_angle": round(math.sin(frac * 2 * math.pi), 4),
     }
+
+
+REST_TARGETS = {"dawn": 0.02, "dusk": 0.62, "night": 0.78}
+
+
+def epoch_for_rest(now, clock_epoch, target):
+    """New clock_epoch so the CURRENT moment lands at the target day fraction.
+    Shifts the shared world clock forward (single-shared-world; fine pre-multiplayer)."""
+    frac_target = REST_TARGETS[target]
+    _, frac = game_time(now, clock_epoch)
+    delta = (frac_target - frac) % 1.0
+    if delta < 0.02:
+        delta += 1.0          # already there -> sleep a full day to the next one
+    return clock_epoch - delta * config.DAY_SECONDS

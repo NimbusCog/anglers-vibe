@@ -8,11 +8,12 @@ import { GATES, regionAt } from "./world/regions";
 import { Sky } from "./sky/sky";
 import { Weather } from "./sky/weather";
 import { Wildlife } from "./world/wildlife";
+import { Cruisers } from "./world/cruisers";
 import { PlayerController } from "./player/controller";
 import { Hud } from "./ui/hud";
 import { Panels } from "./ui/panels";
 import { Fishing } from "./fishing/index";
-import { buyItem, getState, savePos, sellCreel, subscribeWorld } from "./net/api";
+import { buyItem, getState, restAt, savePos, sellCreel, subscribeWorld } from "./net/api";
 import { audio } from "./audio";
 import type { StateResponse, WorldState } from "./net/api";
 
@@ -46,6 +47,30 @@ roof.rotation.y = Math.PI / 4;
 hut.add(walls, roof);
 hut.position.copy(POST);
 engine.scene.add(hut);
+
+// campfires: one per region, rest to dawn/dusk/night nearby with R
+const CAMPFIRES: THREE.Vector3[] = [
+  new THREE.Vector3(255, 0, -540),   // Tern Bay, by the trading post
+  new THREE.Vector3(95, 0, -250),    // Salmon Run gravel bar
+  new THREE.Vector3(300, 0, 120),    // Eagle Bluffs terrace
+  new THREE.Vector3(-230, 0, 320),   // Icefall cave mouth
+  new THREE.Vector3(40, 0, 620),     // The Eye
+];
+const fireGlows: THREE.PointLight[] = [];
+for (const c of CAMPFIRES) {
+  c.y = heightAt(c.x, c.z);
+  const logs = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.12, 5, 8),
+    new THREE.MeshStandardMaterial({ color: 0x4a3526 }));
+  logs.rotation.x = Math.PI / 2;
+  logs.position.copy(c).add(new THREE.Vector3(0, 0.1, 0));
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.9, 6),
+    new THREE.MeshBasicMaterial({ color: 0xff8c2e }));
+  flame.position.copy(c).add(new THREE.Vector3(0, 0.6, 0));
+  const glow = new THREE.PointLight(0xff9540, 30, 14, 1.8);
+  glow.position.copy(c).add(new THREE.Vector3(0, 1.2, 0));
+  fireGlows.push(glow);
+  engine.scene.add(logs, flame, glow);
+}
 
 const player = new PlayerController(engine.camera, engine.scene, engine.renderer.domElement);
 const hud = new Hud();
@@ -96,6 +121,9 @@ const fishing = new Fishing(
   () => { void refresh(); },                          // lure lost → sync inventory
 );
 
+const cruisers = new Cruisers(engine.scene, () => state?.species ?? [], () => world);
+fishing.claimCruiser = (p) => cruisers.claimNear(p);
+
 async function refresh() {
   try {
     state = await getState();
@@ -110,6 +138,25 @@ async function refresh() {
 void refresh();
 
 subscribeWorld(w => { world = w; sky.serverFrac = w.frac; });
+
+// campfire rest
+let restMenuUntil = 0;
+addEventListener("keydown", async (e: KeyboardEvent) => {
+  const nearFire = CAMPFIRES.some(c => player.pos.distanceTo(c) < 6);
+  if (e.code === "KeyR" && nearFire && !fishing.busy) {
+    restMenuUntil = performance.now() + 5000;
+    hud.toast("rest until… [Z] dawn · [X] dusk · [C] night", 5000);
+    return;
+  }
+  if (performance.now() < restMenuUntil && nearFire) {
+    const to = e.code === "KeyZ" ? "dawn" : e.code === "KeyX" ? "dusk" : e.code === "KeyC" ? "night" : null;
+    if (to) {
+      restMenuUntil = 0;
+      const r = await restAt(to);
+      if (r.ok && r.world) { world = r.world; sky.serverFrac = world.frac; hud.toast(`you rest by the fire… it is now ${world.phase}`); }
+    }
+  }
+});
 
 // panels
 addEventListener("keydown", (e: KeyboardEvent) => {
@@ -146,9 +193,11 @@ setInterval(() => { void savePos(player.pos.x, player.pos.z); }, 10000);
 engine.onUpdate((dt, t) => {
   if (!hud.shopOpen && !panels.anyOpen) player.update(dt);
   fishing.update(dt);
-  water.update(t);
+  water.update(t, sky.sun.position);
   sky.update(t);
   wildlife.update(dt, t);
+  cruisers.update(dt);
+  for (const gl of fireGlows) gl.intensity = 26 + Math.sin(t * 11 + gl.position.x) * 6;
 
   // Icefall Cavern: world goes near-black; the lantern carves a warm pocket
   const region = regionAt(player.pos.x, player.pos.z);

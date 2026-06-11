@@ -28,7 +28,28 @@ export class Sky {
     }));
     this.peaks.position.y = -40;
     scene.add(this.peaks);
+    // stars: point cloud on a far dome, faded in at night
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(900 * 3);
+    for (let i = 0; i < 900; i++) {
+      const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI * 0.45 + 0.08;
+      const r = 2600;
+      starPos[i * 3] = r * Math.cos(e) * Math.cos(a);
+      starPos[i * 3 + 1] = r * Math.sin(e);
+      starPos[i * 3 + 2] = r * Math.cos(e) * Math.sin(a);
+    }
+    starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+    this.starMat = new THREE.PointsMaterial({ color: 0xcfe0ff, size: 2.4, transparent: true, opacity: 0, fog: false, sizeAttenuation: false });
+    const stars = new THREE.Points(starGeo, this.starMat);
+    scene.add(stars);
+    // low moon
+    this.moon = new THREE.Mesh(new THREE.SphereGeometry(28, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xe8edf5, fog: false, transparent: true, opacity: 0 }));
+    scene.add(this.moon);
   }
+
+  private starMat!: THREE.PointsMaterial;
+  private moon!: THREE.Mesh;
 
   /** When set (server world frac 0..1), the sun follows server time instead of local. */
   serverFrac: number | null = null;
@@ -78,5 +99,9 @@ export class Sky {
     (this.scene.background as THREE.Color).setHSL(0.58, 0.32, 0.62 - 0.4 * night);
     (this.scene.fog as THREE.Fog).color.copy(this.scene.background as THREE.Color);
     if (this.auroraMat) this.auroraMat.uniforms.uT!.value = t;
+    // stars and moon fade with night depth
+    this.starMat.opacity = night * 0.9;
+    (this.moon.material as THREE.MeshBasicMaterial).opacity = night * 0.95;
+    this.moon.position.set(-r * Math.cos(azim + Math.PI), 360 + 120 * night, -r * Math.sin(azim + Math.PI));
   }
 }

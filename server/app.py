@@ -115,6 +115,22 @@ async def api_buy(request):
                               "lures": player["lures"], "creel_slots": player["creel_slots"]})
 
 
+async def api_rest(request):
+    """Campfire rest: jump the world clock to dawn/dusk/night."""
+    conn = request.app["db"]
+    body = await request.json()
+    target = body.get("to")
+    if target not in world.REST_TARGETS:
+        return web.json_response({"ok": False, "reason": "bad target"})
+    w = db.get_world_row(conn)
+    new_epoch = world.epoch_for_rest(time.time(), w["clock_epoch"], target)
+    conn.execute("UPDATE world SET clock_epoch=? WHERE id=1", (new_epoch,))
+    conn.commit()
+    snap = world_snap(conn)
+    log.info(f"rest -> {target} (now {snap['phase']})")
+    return web.json_response({"ok": True, "world": snap})
+
+
 async def api_consume(request):
     """Lure lost (line snap) or spent — server-authoritative inventory."""
     conn = request.app["db"]
@@ -186,6 +202,7 @@ def make_app():
     app.router.add_post("/api/buy", api_buy)
     app.router.add_post("/api/pos", api_pos)
     app.router.add_post("/api/consume", api_consume)
+    app.router.add_post("/api/rest", api_rest)
     app.router.add_get("/ws", ws_handler)
     candidates = [
         config.CLIENT_DIST,

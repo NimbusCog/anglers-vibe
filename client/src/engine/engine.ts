@@ -15,6 +15,8 @@ export class Engine {
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     document.body.appendChild(this.renderer.domElement);
     this.camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 4000);
     addEventListener("resize", () => {

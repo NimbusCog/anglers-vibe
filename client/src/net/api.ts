@@ -91,3 +91,10 @@ export async function consumeLure(lure_id: string) {
   });
   return r.json() as Promise<{ ok: boolean; lures: Record<string, number> }>;
 }
+
+export async function restAt(to: "dawn" | "dusk" | "night") {
+  const r = await fetch(`${API}/api/rest`, {
+    method: "POST", headers: HDRS, body: JSON.stringify({ to }),
+  });
+  return r.json() as Promise<{ ok: boolean; world?: WorldState }>;
+}
