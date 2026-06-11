@@ -6,6 +6,8 @@ export class Engine {
   camera: THREE.PerspectiveCamera;
   private updaters: ((dt: number, t: number) => void)[] = [];
   private clock = new THREE.Clock();
+  /** time dilation for dramatic moments (slow-mo on landing a fish) */
+  timeScale = 1;
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -26,7 +28,7 @@ export class Engine {
 
   start() {
     this.renderer.setAnimationLoop(() => {
-      const dt = Math.min(this.clock.getDelta(), 0.05);
+      const dt = Math.min(this.clock.getDelta(), 0.05) * this.timeScale;
       const t = this.clock.elapsedTime;
       for (const u of this.updaters) u(dt, t);
       this.renderer.render(this.scene, this.camera);

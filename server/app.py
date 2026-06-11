@@ -22,6 +22,10 @@ log = logging.getLogger("anglers")
 WS_CLIENTS: set = set()
 
 
+def player_token(request):
+    return request.headers.get("X-Player") or request.query.get("player") or "legacy"
+
+
 def world_snap(conn):
     w = db.get_world_row(conn)
     return world.snapshot(time.time(), w["clock_epoch"], w["weather_seed"])
@@ -37,12 +41,14 @@ def daily_want(conn):
 
 async def api_state(request):
     conn = request.app["db"]
+    player = db.get_player(conn, player_token(request))
     return web.json_response({
-        "player": db.get_player(conn),
+        "player": player,
         "world": world_snap(conn),
         "want": daily_want(conn),
-        "log": db.collection_log(conn),
+        "log": db.collection_log(conn, player["id"]),
         "species": [{k: v for k, v in sp.items()} for sp in species.SPECIES],
+        "method_mult": species.METHOD_MULT,
         "catalog": economy.CATALOG,
     })
 
@@ -53,26 +59,28 @@ async def api_catch(request):
     sid, weight, pct, region = (body.get("species_id"), float(body.get("weight", 0)),
                                 float(body.get("pct", 0.5)), int(body.get("region", 1)))
     snap = world_snap(conn)
-    ok, reason = validate.validate_catch(sid, weight, region, snap, db.last_catch_ts(conn), time.time())
+    player = db.get_player(conn, player_token(request))
+    ok, reason = validate.validate_catch(sid, weight, region, snap, db.last_catch_ts(conn, player["id"]), time.time())
     if not ok:
         log.warning(f"catch rejected: {reason} (sp={sid} w={weight} r={region})")
         return web.json_response({"accepted": False, "reason": reason})
-    player = db.get_player(conn)
     if len(player["creel"]) >= player["creel_slots"]:
         return web.json_response({"accepted": False, "reason": "creel full"})
-    first = db.is_first_catch(conn, sid)
+    first = db.is_first_catch(conn, player["id"], sid)
+    prev_best = db.best_weight(conn, player["id"], sid)
     value = economy.catch_value(sid, pct, first, daily_want(conn))
     player["creel"].append({"species": sid, "weight": weight, "pct": pct, "value": value})
-    db.record_catch(conn, sid, weight, pct, region, snap)
+    db.record_catch(conn, player["id"], sid, weight, pct, region, snap)
     db.save_player(conn, player)
     log.info(f"catch: {species.BY_ID[sid]['name']} {weight}kg ${value} first={first}")
     return web.json_response({"accepted": True, "first_catch": first, "value": value,
-                              "creel": player["creel"]})
+                              "record": prev_best is None or weight > prev_best,
+                              "prev_best": prev_best, "creel": player["creel"]})
 
 
 async def api_sell(request):
     conn = request.app["db"]
-    player = db.get_player(conn)
+    player = db.get_player(conn, player_token(request))
     total = sum(item["value"] for item in player["creel"])
     sold = player["creel"]
     player["money"] += total
@@ -89,25 +97,42 @@ async def api_buy(request):
     item = economy.CATALOG.get(item_id)
     if item is None:
         return web.json_response({"ok": False, "reason": "no such item"})
-    player = db.get_player(conn)
-    if item_id in player["gear"]:
+    player = db.get_player(conn, player_token(request))
+    if item["kind"] != "lure" and item_id in player["gear"]:
         return web.json_response({"ok": False, "reason": "already owned"})
     if player["money"] < item["price"]:
         return web.json_response({"ok": False, "reason": "not enough money"})
     player["money"] -= item["price"]
-    player["gear"].append(item_id)
+    if item["kind"] == "lure":
+        player["lures"][item_id] = player["lures"].get(item_id, 0) + 1
+    else:
+        player["gear"].append(item_id)
     if item["kind"] == "creel":
         player["creel_slots"] = item["slots"]
     db.save_player(conn, player)
     log.info(f"bought {item_id} for ${item['price']}")
     return web.json_response({"ok": True, "money": player["money"], "gear": player["gear"],
-                              "creel_slots": player["creel_slots"]})
+                              "lures": player["lures"], "creel_slots": player["creel_slots"]})
+
+
+async def api_consume(request):
+    """Lure lost (line snap) or spent — server-authoritative inventory."""
+    conn = request.app["db"]
+    body = await request.json()
+    lure_id = body.get("lure_id")
+    player = db.get_player(conn, player_token(request))
+    n = player["lures"].get(lure_id, 0)
+    if n <= 0:
+        return web.json_response({"ok": False, "lures": player["lures"]})
+    player["lures"][lure_id] = n - 1
+    db.save_player(conn, player)
+    return web.json_response({"ok": True, "lures": player["lures"]})
 
 
 async def api_pos(request):
     conn = request.app["db"]
     body = await request.json()
-    player = db.get_player(conn)
+    player = db.get_player(conn, player_token(request))
     player["pos"] = [float(body.get("x", 0)), float(body.get("z", -700))]
     db.save_player(conn, player)
     return web.json_response({"ok": True})
@@ -160,6 +185,7 @@ def make_app():
     app.router.add_post("/api/sell", api_sell)
     app.router.add_post("/api/buy", api_buy)
     app.router.add_post("/api/pos", api_pos)
+    app.router.add_post("/api/consume", api_consume)
     app.router.add_get("/ws", ws_handler)
     candidates = [
         config.CLIENT_DIST,

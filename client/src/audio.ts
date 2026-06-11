@@ -100,6 +100,32 @@ class GameAudio {
   }
 
   splash() { this.blip(120, 0.25, 0.2, "triangle"); this.blip(60, 0.35, 0.15, "sine"); }
+
+  /** Loon call: two long wavering notes — dusk ambience. */
+  loon() {
+    if (!this.ctx || !this.master) return;
+    const note = (start: number, f0: number, f1: number, dur: number) => {
+      const o = this.ctx!.createOscillator();
+      o.type = "sine";
+      const g = this.ctx!.createGain();
+      const t = this.ctx!.currentTime + start;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.linearRampToValueAtTime(f1, t + dur * 0.6);
+      o.frequency.linearRampToValueAtTime(f0 * 0.95, t + dur);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.05, t + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      const trem = this.ctx!.createOscillator();
+      trem.frequency.value = 7;
+      const tg = this.ctx!.createGain();
+      tg.gain.value = 0.02;
+      trem.connect(tg).connect(g.gain);
+      o.connect(g).connect(this.master!);
+      o.start(t); o.stop(t + dur); trem.start(t); trem.stop(t + dur);
+    };
+    note(0, 620, 830, 1.4);
+    note(1.8, 700, 920, 1.8);
+  }
   chime() { this.blip(660, 0.4, 0.12); setTimeout(() => this.blip(880, 0.5, 0.12), 120); }
   snap() { this.blip(1400, 0.08, 0.25, "square"); }
 }

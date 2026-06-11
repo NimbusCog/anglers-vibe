@@ -20,6 +20,14 @@ const css = `
   font:12px monospace;padding:4px 10px;cursor:pointer;margin-left:8px}
 #shop button:disabled{opacity:.4;cursor:default}
 .shoprow{display:flex;justify-content:space-between;align-items:center;padding:3px 0}
+#flash{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .5s}
+#card{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.9);background:#101822f2;
+  color:#dfe9f5;font:14px monospace;padding:22px 30px;border:1px solid #3c5068;border-radius:10px;
+  display:none;text-align:center;min-width:280px;opacity:0;transition:all .25s}
+#card.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1)}
+#card .fish{font-size:20px;font-weight:bold;margin:6px 0}
+#card .badge{display:inline-block;margin:4px 4px 0;padding:2px 10px;border-radius:10px;font-size:11px}
+#card .b-new{background:#2c5a8f}#card .b-rec{background:#8f6b2c}#card .b-rare{background:#6b2c8f}
 `;
 
 export class Hud {
@@ -137,4 +145,41 @@ export class Hud {
 
   get shopOpen() { return this.shop.style.display === "block"; }
   setShopOpen(open: boolean) { this.shop.style.display = open ? "block" : "none"; }
+
+  private flashEl = (() => {
+    const f = document.createElement("div");
+    f.id = "flash";
+    document.body.appendChild(f);
+    return f;
+  })();
+
+  /** Brief fullscreen tint — e.g. red on line snap. */
+  flash(color: string) {
+    this.flashEl.style.background = color;
+    this.flashEl.style.opacity = "0.35";
+    setTimeout(() => (this.flashEl.style.opacity = "0"), 180);
+  }
+
+  private cardEl = (() => {
+    const c = document.createElement("div");
+    c.id = "card";
+    document.body.appendChild(c);
+    return c;
+  })();
+  private cardTimer = 0;
+
+  /** The catch moment: name, weight, value, badges. Auto-dismisses. */
+  showCard(name: string, rarity: string, weight: number, value: number,
+           badges: { first: boolean; record: boolean }) {
+    const b: string[] = [];
+    if (badges.first) b.push('<span class="badge b-new">NEW SPECIES</span>');
+    if (badges.record) b.push('<span class="badge b-rec">PERSONAL BEST</span>');
+    if (rarity === "rare" || rarity === "legendary") b.push(`<span class="badge b-rare">${rarity.toUpperCase()}</span>`);
+    this.cardEl.innerHTML =
+      `<div>landed</div><div class="fish">${name}</div>` +
+      `<div>${weight.toFixed(2)} kg — $${value}</div><div>${b.join("")}</div>`;
+    this.cardEl.classList.add("show");
+    clearTimeout(this.cardTimer);
+    this.cardTimer = window.setTimeout(() => this.cardEl.classList.remove("show"), 3800);
+  }
 }

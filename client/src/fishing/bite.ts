@@ -14,10 +14,12 @@ export function biteWeight(sp: SpeciesDef, w: WorldState): number {
   return wt;
 }
 
-export function sampleBite(all: SpeciesDef[], region: number, w: WorldState, rng: () => number = Math.random) {
+export function sampleBite(all: SpeciesDef[], region: number, w: WorldState,
+                           rng: () => number = Math.random,
+                           methodMult: Record<string, number> = {}) {
   const pool = all
     .filter(sp => sp.regions.includes(region))
-    .map(sp => ({ sp, wt: biteWeight(sp, w) }))
+    .map(sp => ({ sp, wt: biteWeight(sp, w) * (methodMult[sp.personality] ?? 1) }))
     .filter(e => e.wt > 0);
   if (pool.length === 0) return null;
   const total = pool.reduce((a, e) => a + e.wt, 0);

@@ -9,46 +9,56 @@ export interface SpeciesDef {
 }
 export interface CatalogItem { label: string; price: number; kind: string; tier?: number; slots?: number; }
 export interface Player {
-  money: number; gear: string[]; creel: { species: number; weight: number; pct: number; value: number }[];
+  money: number; gear: string[]; lures: Record<string, number>; creel: { species: number; weight: number; pct: number; value: number }[];
   creel_slots: number; pos: number[];
 }
 export interface StateResponse {
   player: Player; world: WorldState; want: number;
+  method_mult: Record<string, Record<string, number>>;
   log: Record<string, { n: number; best: number; first_ts: number }>;
   species: SpeciesDef[]; catalog: Record<string, CatalogItem>;
 }
 
 const API = location.port === "8800" ? `http://${location.hostname}:8801` : "";
 
+// per-browser save identity
+const PLAYER_KEY = "anglers_player";
+let playerId = localStorage.getItem(PLAYER_KEY);
+if (!playerId) {
+  playerId = crypto.randomUUID();
+  localStorage.setItem(PLAYER_KEY, playerId);
+}
+const HDRS = { "Content-Type": "application/json", "X-Player": playerId };
+
 export async function getState(): Promise<StateResponse> {
-  const r = await fetch(`${API}/api/state`);
+  const r = await fetch(`${API}/api/state`, { headers: HDRS });
   return r.json();
 }
 
 export async function submitCatch(species_id: number, weight: number, pct: number, region: number) {
   const r = await fetch(`${API}/api/catch`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: HDRS,
     body: JSON.stringify({ species_id, weight, pct, region }),
   });
-  return r.json() as Promise<{ accepted: boolean; reason?: string; first_catch?: boolean; value?: number; creel?: Player["creel"] }>;
+  return r.json() as Promise<{ accepted: boolean; reason?: string; first_catch?: boolean; value?: number; record?: boolean; prev_best?: number | null; creel?: Player["creel"] }>;
 }
 
 export async function sellCreel() {
-  const r = await fetch(`${API}/api/sell`, { method: "POST" });
+  const r = await fetch(`${API}/api/sell`, { method: "POST", headers: HDRS });
   return r.json() as Promise<{ sold: number; total: number; money: number }>;
 }
 
 export async function buyItem(item_id: string) {
   const r = await fetch(`${API}/api/buy`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: HDRS,
     body: JSON.stringify({ item_id }),
   });
-  return r.json() as Promise<{ ok: boolean; reason?: string; money?: number; gear?: string[]; creel_slots?: number }>;
+  return r.json() as Promise<{ ok: boolean; reason?: string; money?: number; gear?: string[]; lures?: Record<string, number>; creel_slots?: number }>;
 }
 
 export async function savePos(x: number, z: number) {
   await fetch(`${API}/api/pos`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers: HDRS,
     body: JSON.stringify({ x, z }),
   }).catch(() => {});
 }
@@ -73,4 +83,11 @@ export function subscribeWorld(onWorld: (w: WorldState) => void) {
     ws.onclose = () => setTimeout(connect, 3000);
   };
   connect();
+}
+
+export async function consumeLure(lure_id: string) {
+  const r = await fetch(`${API}/api/consume`, {
+    method: "POST", headers: HDRS, body: JSON.stringify({ lure_id }),
+  });
+  return r.json() as Promise<{ ok: boolean; lures: Record<string, number> }>;
 }

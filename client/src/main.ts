@@ -84,10 +84,16 @@ const fishing = new Fishing(
   () => world,
   () => state?.species ?? [],
   gearTiers,
-  (name, weight, value, first) => {
-    hud.toast(`${first ? "NEW SPECIES — " : ""}${name} ${weight}kg — $${value} in the creel`);
+  () => state?.player.gear ?? [],
+  () => state?.player.lures ?? {},
+  (m) => (m === "float" ? {} : state?.method_mult?.[m] ?? {}),
+  (sp, weight, value, first, record) => {
+    engine.timeScale = 0.25;                          // savor the landing
+    setTimeout(() => { engine.timeScale = 1; }, 900);
+    hud.showCard(sp.name, sp.rarity, weight, value, { first, record });
     void refresh();
   },
+  () => { void refresh(); },                          // lure lost → sync inventory
 );
 
 async function refresh() {
@@ -163,9 +169,16 @@ engine.onUpdate((dt, t) => {
   if (state) {
     const wantName = state.species.find(s => s.id === state!.want)?.name ?? "";
     hud.setStatus(
-      `${REGION_NAMES[region]}${player.pos.distanceTo(POST) <= 8 ? " · [E] trading post" : ""} · want: ${wantName} x3 · [L]og [M]ap`,
+      `${REGION_NAMES[region]}${player.pos.distanceTo(POST) <= 8 ? " · [E] trading post" : ""} · rig: ${fishing.method} [1-4] · want: ${wantName} x3 · [L]og [M]ap`,
       world.phase, world.weather, world.aurora, state.player);
   }
 });
+
+// loon calls when dusk settles in
+let lastPhase = "";
+setInterval(() => {
+  if (world.phase === "dusk" && lastPhase !== "dusk") audio.loon();
+  lastPhase = world.phase;
+}, 5000);
 
 engine.start();

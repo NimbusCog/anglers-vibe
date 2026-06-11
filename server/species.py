@@ -3,6 +3,15 @@ import random
 
 RARITY_WEIGHT = {"common": 100, "uncommon": 35, "rare": 8, "legendary": 1}
 
+# Method multipliers by personality class — methods favor the fish that fit them.
+# float = neutral baseline; spin excites predators; fly charms delicate river fish;
+# jig provokes deep sulkers. Applied client-side in sampling, informational here.
+METHOD_MULT = {
+    "spin": {"ambush": 2.5, "runner": 2.0, "bulldog": 1.5, "sprinter": 1.3},
+    "fly":  {"twitchy": 3.0, "sprinter": 2.0, "jumper": 1.5},
+    "jig":  {"sulker": 3.0, "bulldog": 2.5, "panic": 2.0, "palelight": 2.0, "boss": 1.5},
+}
+
 # region: which regions this fish appears in. conditions: dict of multipliers.
 #   time: {dawn,day,dusk,night}; weather: {clear,rain,fog,snow}; aurora: bool flag.
 #   "only" keys are HARD gates (excluded entirely if unmet).

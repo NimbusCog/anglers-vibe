@@ -18,6 +18,16 @@ CATALOG = {
     "line4":    {"label": "Steelweave Line", "price": 1800, "kind": "line", "tier": 4},
     "creel8":   {"label": "Creel +2 (8)",    "price": 150,  "kind": "creel", "slots": 8},
     "creel10":  {"label": "Creel +2 (10)",   "price": 400,  "kind": "creel", "slots": 10},
+    # method rods — unlock fishing methods (key 2/3/4)
+    "spinrod":  {"label": "Spin Rod",        "price": 350,  "kind": "method", "method": "spin"},
+    "flyrod":   {"label": "Fly Rod",         "price": 600,  "kind": "method", "method": "fly"},
+    "jigrod":   {"label": "Jig Rod",         "price": 900,  "kind": "method", "method": "jig"},
+    # lures — consumable, lost on line snap; bought in singles
+    "spinner":  {"label": "Spinner",         "price": 15,   "kind": "lure", "method": "spin"},
+    "spoon":    {"label": "Spoon",           "price": 40,   "kind": "lure", "method": "spin"},
+    "fly":      {"label": "Dry Fly",         "price": 25,   "kind": "lure", "method": "fly"},
+    "glowjig":  {"label": "Glow Jig",        "price": 60,   "kind": "lure", "method": "jig"},
+    "icejig":   {"label": "Ice Jig",         "price": 90,   "kind": "lure", "method": "jig"},
 }
 
 
